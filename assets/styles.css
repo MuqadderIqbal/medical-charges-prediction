@@ -58,6 +58,11 @@ body {
   padding-left: 0px;
 }
 
+.flex-display-closertop {
+  display: flex;
+  margin-top: -28px;
+}
+
 .flex-display {
   display: flex;
 }
@@ -159,9 +164,6 @@ body {
 }
 
 
-
-
-
 .dark_header {
     background-color: #1a2229;
     border-radius: 5px;
@@ -174,7 +176,10 @@ body {
     
     border-radius: 5px;
     position: relative;
-    
+    background-image: url("/assets/prediction.png");
+    background-size: 800px;
+    background-repeat: repeat;
+    background-position: 100% 100%
     
 }
 
@@ -390,6 +395,26 @@ body {
     display: grid;
 }
 
+#last-updated {
+  text-decoration: none;
+  font-size: 10pt;
+  font-family: sans-serif;
+  color: white;
+  border: solid 1px white;
+  border-radius: 2px;
+  padding: 2px;
+  padding-top: 5px;
+  padding-left: 15px;
+  padding-right: 15px;
+  font-weight: 100;
+  position: relative;
+  top: 15px;
+  float:right;
+  margin-right: 0px;
+  margin-left: 0px;
+  transition-duration: 400ms;
+  height:10%;
+}
 
 
 #gh-link {

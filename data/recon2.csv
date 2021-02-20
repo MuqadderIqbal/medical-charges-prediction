@@ -1,0 +1,5 @@
+recon_subject_area,recon_rule_name,overall_status,recon_pass_count,recon_fail_count,additional_info
+Policy,Policy Number Not Null Check,Fail,150,5,""
+Policy,Valid Transaction Type Code,Fail,200,35,""
+Quote,Quote Number Not Null,Pass,10,0,""
+Claims,Total CDP Reserves match Claim Center,Fail,0,1,"CC = 711979; CDP = 712005; Delta = 26"
