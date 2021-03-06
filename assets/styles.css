@@ -35,7 +35,7 @@ body {
 }
 
 .dcc_control {
-  padding: 5px
+  padding: 5px;
   width: calc(100%-40px);
 }
 
@@ -100,7 +100,7 @@ body {
   font-size: 15px;
   float: right;
   margin-right: 10px;
-  */ margin-top: 30px; */
+  /* margin-top: 30px; */
 }
 #title {
   text-align: center;
@@ -319,7 +319,7 @@ body {
 .tabs_pretty_container {
     border-radius: 5px;
     background-color: #2d353c;
-    */margin: 10px;*/
+    /* margin: 10px;*/
     padding: 0;
     position: relative;
 }
@@ -349,7 +349,7 @@ body {
 
 
 .tab_content {
-    padding: 30px;
+    padding: 15px;
     margin: 10px;
 
 

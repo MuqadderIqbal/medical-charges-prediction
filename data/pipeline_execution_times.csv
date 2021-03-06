@@ -1,0 +1,13 @@
+job_title,job_desc,run_date,total_execution_time_mins
+Job1,First Job for data load,2021-02-26,2
+Job1,First Job for data load,2021-02-27,2.5
+Job1,First Job for data load,2021-02-28,1.9
+Job1,First Job for data load,2021-03-01,4.6
+Job2,Second Job for data load,2021-02-26,8
+Job2,Second Job for data load,2021-02-27,7.7
+Job2,Second Job for data load,2021-02-28,6.9
+Job2,Second Job for data load,2021-03-01,15.3
+Job3,Third Job for data load,2021-02-26,5
+Job3,Third Job for data load,2021-02-27,3.7
+Job3,Third Job for data load,2021-02-28,19.7
+Job3,Third Job for data load,2021-03-01,4.9

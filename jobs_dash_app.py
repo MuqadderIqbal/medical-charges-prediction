@@ -1,6 +1,6 @@
-# Import required libraries
+# region Import required libraries
+# -----------------------------------------------------------------------------------------------
 from dash_core_components.Tab import Tab
-import joblib
 import copy
 import pathlib
 import dash
@@ -10,89 +10,54 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash import no_update
 import plotly.graph_objs as go
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.preprocessing import StandardScaler
 import dash_bootstrap_components as dbc
+from datetime import date
+import plotly.express as px
+import json
 
+#endregion Import
+
+#region Setup runtime variables
+# -----------------------------------------------------------------------------------------------
 # get relative data folder
 PATH = pathlib.Path(__file__).parent
 DATA_PATH = PATH.joinpath("data").resolve()
+PLOTLY_CHART_CONFIGS = {'displayModeBar': False, 'doubleClickDelay': 1000}
 
-app = dash.Dash(
-    __name__, meta_tags=[{"name": "viewport", "content": "width=device-width"}]
-)
-server = app.server
+#endregion Setup runtime variables
 
+#region Setup data stuff
+# -----------------------------------------------------------------------------------------------
 # Set dummy variables
 last_updated = "2021-01-19 11:25AM(PST)"
 dataload_df = pd.read_csv("data/load_status.csv")
 dataload_df["y_value"] = 1
+pipelineperf_df = pd.read_csv("data/pipeline_execution_times.csv")
 
+recon_data_df = pd.read_csv("data/recon2.csv", sep=",", header=0)
+recon_total_count= len(recon_data_df.index)
+recon_passed_count= len(recon_data_df[recon_data_df["overall_status"]=="Pass"].index)
+recon_failed_count = len(recon_data_df[recon_data_df["overall_status"]=="Fail"].index)
 
-# Reading and preprocessing the dataset
-# -----------------------------------------------------------------------------------------------
-df = pd.read_csv("data/insurance.csv")
+#endregion Setup data stuff
 
-# Encoding features
-
-ohe_smoker = OneHotEncoder(drop='first').fit(df["smoker"].values.reshape(-1,1))
-ohe_smoker.get_feature_names(['smoker'])
-
-ohe_sex = OneHotEncoder(drop='first').fit(df["sex"].values.reshape(-1,1))
-ohe_sex.get_feature_names(['sex'])
-
-ohe_region = OneHotEncoder(drop='first').fit(df["region"].values.reshape(-1,1))
-ohe_region.get_feature_names(['region'])
-
-df_2 = pd.concat(
-    [
-        df,
-        pd.DataFrame(ohe_smoker.transform(df["smoker"].values.reshape(-1,1)).toarray(),
-                    columns = ohe_smoker.get_feature_names(['smoker'])).astype(int)
-    ], axis=1).drop("smoker", axis=1)
+app = dash.Dash(
+    __name__, 
+    meta_tags=[{"name": "viewport", "content": "width=device-width"}],
+    external_stylesheets=[dbc.themes.BOOTSTRAP]
+)
+server = app.server
 
 
 
-df_2 = pd.concat(
-    [
-        df_2,
-        pd.DataFrame(ohe_sex.transform(df["sex"].values.reshape(-1,1)).toarray(),
-                    columns = ohe_sex.get_feature_names(['sex'])).astype(int)
-    ], axis=1).drop("sex", axis=1)
+recon_table = dbc.Table.from_dataframe(recon_data_df, striped = True, bordered = True, dark = False)
+recon_badges = [dbc.Button(id="button-total", color= "primary", children=["Rules Total",dbc.Badge(recon_total_count, color = "light", className= "ml-3")]),
+                dbc.Button(id="button-failed", color= "danger", className="ml-3", children=["Rules Failed",dbc.Badge(recon_failed_count, color = "light", className= "ml-3")]),
+                dbc.Button(id="button-passed", color= "success", className="ml-3", children=["Rules Passed",  dbc.Badge(recon_passed_count, color = "light", className= "ml-3")])
 
-df_2 = pd.concat(
-    [
-        df_2,
-        pd.DataFrame(ohe_region.transform(df["region"].values.reshape(-1,1)).toarray(),
-                    columns = ohe_region.get_feature_names(['region'])).astype(int)
-    ], axis=1).drop("region", axis=1)
+                ]
 
-
-X = df_2.drop('charges', axis = 1).values
-y = df_2['charges'].values.reshape(-1,1)
-
-# Feature Scaling
-sc_X = StandardScaler()
-sc_y = StandardScaler()
-X_scaled = sc_X.fit_transform(X)
-y_scaled = sc_y.fit_transform(y.reshape(-1,1))
-
-# df = pd.read_csv("data/insurance.csv")
-
-
-# Random Forrest Model
-# ------------------------------------------------------------------------------------------------
-
-rf_path = 'data/random_forest_model.sav'
-rf_model = joblib.load(rf_path)
-
-lasso_path = 'data/lasso_model.sav'
-lasso_model = joblib.load(lasso_path)
-
-svr_path = 'data/svr_model.sav'
-svr_model = joblib.load(svr_path)
-
-# General layout for charts
+#region General layout for charts
 # -----------------------------------------------------------------------------------------------
 
 layout = dict(
@@ -128,14 +93,17 @@ layout = dict(
         )
 )
 
+#endregion General layout for charts
+
+#region Utility functions
 
 # Color Mapper
 # -----------------------------------------------------------------------------------------------
 def generate_status_colors(row):
     if row["status_code"]==1:
-        return "green"
+        return "#28a745"
     elif  row["status_code"]==2:
-        return "crimson"
+        return "#dc3545"
     elif row["status_code"]==4:
         return "grey"
     else:
@@ -146,387 +114,70 @@ def generate_status_colors(row):
 def loadStatus_graph():
     dataload_df["color"] = dataload_df.apply(generate_status_colors, axis=1)
     layout_count = copy.deepcopy(layout)
+    statusplot = px.bar(dataload_df, x="job_title", y="y_value")
     
-    fig = go.Figure(layout=layout_count)
-    
-    fig.add_trace(
-        go.Bar(
-            name='test set',
-            # x=['Random Forest', 'Decision Tree', 'Lasso', 'Ridge', 'SVR', 'Linear'],
-            # y=[3948.307638, 4296.587786, 4569.831897, 4570.420248, 4578.942853, 5926.023602],
-            x=dataload_df["job_title"],
-            y=dataload_df["y_value"],
-            marker_color=dataload_df["color"],
-            orientation='v',
-            # marker=dict(
-            #     color = '#AC5700'
-            # )
-            
-        ),    
-    )
-    
-    fig.update_layout(
+    #statusplot.update_layout(layout_count,  yaxis_zeroline=False, yaxis={'visible': False})
+    statusplot.update_traces(marker_color = dataload_df["color"])
+    statusplot.update_layout(layout_count)
+    statusplot.update_layout(
         title = "Job Execution",
         title_x=0.5,
         yaxis={'visible': False},
-        #yaxis_title="",
         titlefont=dict(
             family='Open Sans',
             size=18,
             color = "#ffffff"
         ),
         showlegend = True,
-        yaxis_zeroline=False
+        yaxis_zeroline=False,
+        
     )
+    # fig = go.Figure(layout=layout_count)
     
-    return fig
-
-
-# Smoker Graph (Data Analysis Tab)
-# -----------------------------------------------------------------------------------------------
-
-def smoker_graph():
-    
-    layout_count = copy.deepcopy(layout)
-    
-    fig = go.Figure(layout=layout_count)
-
-    fig.add_trace(go.Violin(x=df['smoker'][ df['smoker'] == 'yes' ],
-                            y=df['charges'][ df['smoker'] == 'yes' ],
-                            box_visible=True, opacity=1   ,
-                            legendgroup='Smoker', scalegroup='M', name='Smoker',
-                            fillcolor='#e8871a', line_color='black',))
-    
-    fig.add_trace(go.Violin(x=df['smoker'][ df['smoker'] == 'no' ],
-                            y=df['charges'][ df['smoker'] == 'no' ],
-                            box_visible=True, opacity=1,
-                            legendgroup='Non-Smoker', scalegroup='M', name='Non-Smoker',
-                            fillcolor='#00c0c7', line_color='black',))   
-    
-    fig.update_layout(
-        title = "Smoker and Non-Smoker Charges",
-        title_x=0.5,
-        yaxis_title="Charges",
+    # fig.add_trace(
         
-        titlefont=dict(
-            family='Open Sans',
-            size=18,
-            color = "#ffffff"
-        ),
-        
-        showlegend = False,
-        
-        yaxis_zeroline=False)
-    
-    return fig
-
-# Age Graph (Data Analysis Tab)
-# -----------------------------------------------------------------------------------------------
-
-def age_graph():
-    
-    layout_count = copy.deepcopy(layout)
-    
-    fig = go.Figure(layout=layout_count)
-    
-    fig.add_trace(go.Scatter(x=df["age"],
-                             y=df["charges"],
-                             mode='markers',
-                             opacity=0.7,
-                             marker_symbol = "hexagon",
-                             marker=dict(
-                                 color='#00c0c7',
-                                 size=8,
-                                  line=dict(
-                                      color='black',
-                                      width=0.4
-                                  )
-                             ),
-                         )),  
-    
-    fig.update_layout(
-        title = "Charges with respect to Age",
-        title_x=0.5,
-        xaxis_title="Age",
-        # yaxis_title="Charges",
-        titlefont=dict(
-            family='Open Sans',
-            size=18,
-            color = "#ffffff"
-        ),
-        
-        yaxis_zeroline=False)
-    
-    return fig
-
-# R2 Graph (Models Performance Tab)
-# -----------------------------------------------------------------------------------------------
-
-def rsquared_graph():
-    
-    layout_count = copy.deepcopy(layout)
-    
-    fig = go.Figure(layout=layout_count)
-    
-    fig.add_trace(
-        go.Bar(
-            name='test set',
-            y=['Random Forest', 'Decision Tree', 'Lasso', 'Ridge', 'SVR', 'Linear'],
-            x=[0.896686, 0.877656, 0.861600, 0.861564, 0.861047, 0.767264],
-            orientation='h',
-            marker=dict(
-                color = '#006064'
-            )
+    #     # go.Bar(
+    #     #     #name='testing',
+    #     #     x=dataload_df["job_title"],
+    #     #     y=dataload_df["y_value"],
+    #     #     marker_color=dataload_df["color"],
+    #     #     orientation='v',
+    #     #     showlegend = True,
+    #     #     # marker=dict(
+    #     #     #     color = '#AC5700'
+    #     #     # )
             
-        ),    
-    )
+    #     # ),    
+    # )
     
-    fig.update_layout(
-        title = "R2 Score (Test set)",
-        title_x=0.5,
-        yaxis_title="Model",
-        titlefont=dict(
-            family='Open Sans',
-            size=18,
-            color = "#ffffff"
-        ),
-        showlegend = False,
-        yaxis_zeroline=False
-    )
+    # fig.update_layout(
+    #     title = "Job Execution",
+    #     title_x=0.5,
+    #     yaxis={'visible': False},
+    #     #yaxis_title="",
+    #     titlefont=dict(
+    #         family='Open Sans',
+    #         size=18,
+    #         color = "#ffffff"
+    #     ),
+    #     showlegend = True,
+    #     yaxis_zeroline=False,
+        
+    # )
     
-    return fig
+    return statusplot
 
-# RMSE Graph (Models Performance Tab)
-# -----------------------------------------------------------------------------------------------
 
-def rmse_graph():
-    
+def pipelinePerf_graph():
     layout_count = copy.deepcopy(layout)
-    
-    fig = go.Figure(layout=layout_count)
-    
-    fig.add_trace(
-        go.Bar(
-            name='test set',
-            x=['Random Forest', 'Decision Tree', 'Lasso', 'Ridge', 'SVR', 'Linear'],
-            y=[3948.307638, 4296.587786, 4569.831897, 4570.420248, 4578.942853, 5926.023602],
-            orientation='v',
-            marker=dict(
-                color = '#AC5700'
-            )
-            
-        ),    
-    )
-    
-    fig.update_layout(
-        title = "RMSE (Test set)",
-        title_x=0.5,
-        yaxis_title="Model",
-        titlefont=dict(
-            family='Open Sans',
-            size=18,
-            color = "#ffffff"
-        ),
-        showlegend = False,
-        yaxis_zeroline=False
-    )
-    
-    return fig
+    perfplot = px.line(pipelineperf_df, x="run_date", y="total_execution_time_mins", color="job_title")
+    perfplot.update_layout(layout_count)
+    perfplot.update_layout(xaxis=dict(tickformat="%Y-%m-%d", tickmode= 'linear'))
+    return perfplot
 
-# BMI Graph (Data Distribution Tab)
-# -----------------------------------------------------------------------------------------------
+#endregion Utility functions
 
-def bmi_dist():
-    
-    layout_count = copy.deepcopy(layout)
-    
-    fig = go.Figure(layout=layout_count)
-    
-    fig.add_trace(
-        go.Histogram(
-            x=df['bmi'].values,
-            y=df['bmi'].values,
-            # marginal='box',
-        ) 
-    )
-    
-    fig.update_layout(
-        title = "BMI Distribution",
-        title_x=0.5,
-        # yaxis_title="Sum",
-        titlefont=dict(
-            family='Open Sans',
-            size=18,
-            color = "#ffffff"
-        ),
-        showlegend = False,
-        yaxis_zeroline=False
-    )
-    
-    return fig
-
-# Age Graph (Data Distribution Tab)
-# -----------------------------------------------------------------------------------------------
-
-def age_dist():
-    
-    layout_count = copy.deepcopy(layout)
-    
-    fig = go.Figure(layout=layout_count)
-    
-    fig.add_trace(
-        go.Histogram(
-            x=df['age'].values,
-            y=df['age'].values,
-            # marginal='box',
-        ) 
-    )
-    
-    fig.update_layout(
-        title = "Age Distribution",
-        title_x=0.5,
-        # yaxis_title="Sum",
-        titlefont=dict(
-            family='Open Sans',
-            size=18,
-            color = "#ffffff"
-        ),
-        showlegend = False,
-        yaxis_zeroline=False
-    )
-    
-    return fig
-
-# Region Graph (Data Distribution Tab)
-# -----------------------------------------------------------------------------------------------
-
-def region_dist():
-    
-    layout_count = copy.deepcopy(layout)
-    
-    fig = go.Figure(layout=layout_count)
-    
-    fig.add_trace(
-        go.Histogram(
-            x=df['region'].values,
-            y=df['region'].values,
-            # marginal='box',
-        ) 
-    )
-    
-    fig.update_layout(
-        title = "Region Distribution",
-        title_x=0.5,
-        # yaxis_title="Sum",
-        titlefont=dict(
-            family='Open Sans',
-            size=18,
-            color = "#ffffff"
-        ),
-        showlegend = False,
-        yaxis_zeroline=False
-    )
-    
-    return fig
-
-# Sex Graph (Data Distribution Tab)
-# -----------------------------------------------------------------------------------------------
-
-def sex_dist():
-    
-    layout_count = copy.deepcopy(layout)
-    
-    fig = go.Figure(layout=layout_count)
-    
-    fig.add_trace(
-        go.Histogram(
-            x=df['sex'].values,
-            y=df['sex'].values,
-            # marginal='box',
-        ) 
-    )
-    
-    fig.update_layout(
-        title = "Sex Distribution",
-        title_x=0.5,
-        # yaxis_title="Sum",
-        titlefont=dict(
-            family='Open Sans',
-            size=18,
-            color = "#ffffff"
-        ),
-        showlegend = False,
-        yaxis_zeroline=False
-    )
-    
-    return fig
-
-# Children Graph (Data Distribution Tab)
-# -----------------------------------------------------------------------------------------------
-
-def children_dist():
-    
-    layout_count = copy.deepcopy(layout)
-    
-    fig = go.Figure(layout=layout_count)
-    
-    fig.add_trace(
-        go.Histogram(
-            x=df['children'].values,
-            y=df['children'].values,
-            # marginal='box',
-        ) 
-    )
-    
-    fig.update_layout(
-        title = "Children Distribution",
-        title_x=0.5,
-        # yaxis_title="Sum",
-        titlefont=dict(
-            family='Open Sans',
-            size=18,
-            color = "#ffffff"
-        ),
-        showlegend = False,
-        yaxis_zeroline=False
-    )
-    
-    return fig
-
-# Smoker Graph (Data Distribution Tab)
-# -----------------------------------------------------------------------------------------------
-
-def smoker_dist():
-    
-    layout_count = copy.deepcopy(layout)
-    
-    fig = go.Figure(layout=layout_count)
-    
-    fig.add_trace(
-        go.Histogram(
-            x=df['smoker'].values,
-            y=df['smoker'].values,
-            # marginal='box',
-        ) 
-    )
-    
-    fig.update_layout(
-        title = "Smoker Distribution",
-        title_x=0.5,
-        # yaxis_title="Sum",
-        titlefont=dict(
-            family='Open Sans',
-            size=18,
-            color = "#ffffff"
-        ),
-        showlegend = False,
-        yaxis_zeroline=False
-    )
-    
-    return fig
-
-
-# Creating App Layout
+#region Creating App Layout
 # -----------------------------------------------------------------------------------------------
 app.layout = html.Div(
     [
@@ -582,10 +233,8 @@ app.layout = html.Div(
                         # )
                         html.P("Last Updated: {0}".format(last_updated),
                                 id="last-updated"
-                                #style={"display":"flex", "color": "white", "align-self": "flex-end"},
                             )
                     ],
-                    #className="one-third column",
                     id="button",
                 ), 
             ],
@@ -593,7 +242,6 @@ app.layout = html.Div(
             className="row dark_header",
         )],
     ),
-        
         
         # Tabs
         # --------------------------------------------------------------------------------
@@ -607,69 +255,33 @@ app.layout = html.Div(
                         [
                             dcc.Tab(label="Load Status", children=[
                                 html.Div([
-                                    dcc.Graph(figure=loadStatus_graph(),className = "twelve columns")
+                                    dcc.Graph(id= "loadStatusGraph", figure=loadStatus_graph(),className = "twelve columns", config = PLOTLY_CHART_CONFIGS)
+                                ], className="tab_content"),
+                                html.Div(id="job_error_modal_div"),
+
+                            ]),
+
+                            dcc.Tab(label="Recon Status", children=[
+                                html.Div([
+                                            html.H5("Recon Status: " + str(date.today()), className= "mt-1 ml-1"),
+                                            #html.Hr(),
+                                            # html.Div(recon_badges, className="ml-5 mt-3" ),
+                                            # html.Hr(),
+                                            dbc.Container(id="badges-cont", children=recon_badges, className="ml-3 mt-0" ),
+                                            html.Hr(),
+                                            dbc.Container(id="recon_table", children=recon_table,className="p-2 mt-1 ml-3", fluid= True),
+                                            html.Div(children=recon_table,id="recon_table_div", className="p-2 mt-3 ml-3"),
+
+                                               ], className="tab_content")
+
+                            ]),
+                            dcc.Tab(label="Pipeline Performance", children=[
+                                html.Div([
+                                    dcc.Graph(figure=pipelinePerf_graph(),className = "twelve columns", config = PLOTLY_CHART_CONFIGS)
                                 ], className="tab_content")
 
-
-                            ]),
-                            # dcc.Tab(label = "Data Analysis", children = [
-                                
-                            #     html.Div([
-                                    
-                            #         dcc.Graph(figure = smoker_graph(), className = "four columns", style = {"height": "400px" }),
-                                    
-                            #         dcc.Graph(figure = age_graph(), className = "eight columns", style = {"height": "424px" })
-                                    
-                            #     ], className = "tab_content"),
-                                
-                                
-                            # ]),
-                            
-                            
-                            dcc.Tab(label = "Data Distribution", children = [
-                                
-                                html.Div([
-                                    
-                                    html.Div([
-                                        dcc.Graph(figure = bmi_dist(), className = "four columns", style = {"height": "280px" }),
-                                    
-                                        dcc.Graph(figure = age_dist(), className = "four columns", style = {"height": "280px" }),
-                                        
-                                        dcc.Graph(figure = region_dist(), className = "four columns", style = {"height": "280px" }),
-                                            
-                                    ], className="row"),
-                                    
-                                    html.Div([
-                                        dcc.Graph(figure = sex_dist(), className = "four columns", style = {"height": "280px" }),
-                                    
-                                        dcc.Graph(figure = children_dist(), className = "four columns", style = {"height": "280px" }),
-                                        
-                                        dcc.Graph(figure = smoker_dist(), className = "four columns", style = {"height": "280px" }),
-                                            
-                                    ], className="row"),
-                                    
-                                    
-                                    
-                                ], className = "tab_content"),
-                                
-                                
-                                
                             ]),
                             
-                            dcc.Tab(label = "Models Performance", children = [
-                                
-                                html.Div([
-                                    
-                                    dcc.Graph(figure = rsquared_graph(), className = "twelve columns", style = {"height": "360px" }),
-                                        
-                                    
-                                    dcc.Graph(figure = rmse_graph(), className = "twelve columns", style = {"height": "360px" }),
-                                                                        
-                                ], className = "tab_content"),
-                                
-                                
-                                
-                            ]),
                             
                             dcc.Tab(label = "About the App", children = [
                                 
@@ -717,377 +329,288 @@ app.layout = html.Div(
             
         ),
 
-
-
-            # First Row
+        #region First Row
         # --------------------------------------------------------------------------------
         
-        html.Div(
-            [
-                # BMI Calculator
-                # --------------------------------------------------------------------------------
-                
-                html.Div(
-                    [
-                        # Header of BMI
-                        html.Div([
-                            html.H6("Body Mass Index Calculator", className = "bmi_card_header_text"),
-                            html.H4("Your BMI: 0", id = "bmi_value", className = "bmi_card_value_text")
-                        ], className = "bmi_card_header"),
+        # html.Div(
+        #     [
+        #         html.Div(
+        #             [
+        #                 # Header of BMI
+        #                 html.Div([
+        #                     html.H6("Body Mass Index Calculator", className = "bmi_card_header_text"),
+        #                     html.H4("Your BMI: 0", id = "bmi_value", className = "bmi_card_value_text")
+        #                 ], className = "bmi_card_header"),
                         
-                        # Height Input
+        #                 # Height Input
                         
-                        html.P("Height (cm)", className="control_label white_input"),
-                        html.Div(
-                            dcc.Input(
-                                className = "bmi_input",
-                            id="input_height", type="number", placeholder="Enter your height",
-                            min=0, max=250),
-                         className="dcc_control",                            
-                         ),
+        #                 html.P("Height (cm)", className="control_label white_input"),
+        #                 html.Div(
+        #                     dcc.Input(
+        #                         className = "bmi_input",
+        #                     id="input_height", type="number", placeholder="Enter your height",
+        #                     min=0, max=250),
+        #                  className="dcc_control",                            
+        #                  ),
                         
-                        # Weight Input
+        #                 # Weight Input
                         
-                        html.P("Weight (kg)", className="control_label white_input"),
-                        html.Div(
-                            dcc.Input(
-                                className = "bmi_input",
-                                id="input_weight", type="number", placeholder="Enter your weight",
-                                min=0, max=250),
-                         className="dcc_control ",                            
-                         ),
+        #                 html.P("Weight (kg)", className="control_label white_input"),
+        #                 html.Div(
+        #                     dcc.Input(
+        #                         className = "bmi_input",
+        #                         id="input_weight", type="number", placeholder="Enter your weight",
+        #                         min=0, max=250),
+        #                  className="dcc_control ",                            
+        #                  ),
                         
-                        # Age Input
+        #                 # Age Input
                         
-                        html.P("Age", className="control_label white_input"),
-                        html.Div(
-                            dcc.Input(
-                                className = "bmi_input",
-                                id="input_age", type="number", placeholder="Enter your age",
-                                min=2, max=122),
-                         className="dcc_control ",                            
-                         ),
+        #                 html.P("Age", className="control_label white_input"),
+        #                 html.Div(
+        #                     dcc.Input(
+        #                         className = "bmi_input",
+        #                         id="input_age", type="number", placeholder="Enter your age",
+        #                         min=2, max=122),
+        #                  className="dcc_control ",                            
+        #                  ),
                             
-                        # Calculate and Reset Buttons
+        #                 # Calculate and Reset Buttons
                         
-                        html.Div(
-                            [
-                                html.Button('Reset', id='btn_reset', n_clicks=0, className= "btn_reset"),
-                                html.Button('Calculate', id='btn_calculate', n_clicks=0, className = "btn_calculate"),
-                            ],
-                         className="dcc_control", id = "bmi-buttons"                         
-                         ),
+        #                 html.Div(
+        #                     [
+        #                         html.Button('Reset', id='btn_reset', n_clicks=0, className= "btn_reset"),
+        #                         html.Button('Calculate', id='btn_calculate', n_clicks=0, className = "btn_calculate"),
+        #                     ],
+        #                  className="dcc_control", id = "bmi-buttons"                         
+        #                  ),
 
-                    ],
-                    className="pretty_container four columns",
-                    id="cross-filter-options",
-                ),
+        #             ],
+        #             className="pretty_container four columns",
+        #             id="cross-filter-options",
+        #         ),
                                 
-                # Prediction
-                # --------------------------------------------------------------------------------
+        #         # Prediction
+        #         # --------------------------------------------------------------------------------
                 
-                html.Div(
-                    [
+        #         html.Div(
+        #             [
                         
                         
-                        html.Div(
-                            [
-                                # Header of Prediction Card
-                                html.Div([
-                                    html.H5("Prediction", className = "bmi_card_header_text"),
-                                ], className = "prediction_card_header"),
+        #                 html.Div(
+        #                     [
+        #                         # Header of Prediction Card
+        #                         html.Div([
+        #                             html.H5("Prediction", className = "bmi_card_header_text"),
+        #                         ], className = "prediction_card_header"),
                                 
                                 
-                                html.Div([
+        #                         html.Div([
                                     
-                                    # Age
+        #                             # Age
                                                                                
-                                    html.Div(
-                                        [
-                                            html.P("Age", className="control_label white_input"),
-                                            dcc.Input(
-                                                id="predict_age", type="number", placeholder="Enter your age",
-                                                min=2, max=122),
+        #                             html.Div(
+        #                                 [
+        #                                     html.P("Age", className="control_label white_input"),
+        #                                     dcc.Input(
+        #                                         id="predict_age", type="number", placeholder="Enter your age",
+        #                                         min=2, max=122),
                                                 
-                                        ], className = "three columns predict_input",
-                                    ),
+        #                                 ], className = "three columns predict_input",
+        #                             ),
                                     
-                                    # BMI
+        #                             # BMI
                                     
-                                    html.Div(
-                                        [
-                                            html.P("BMI", className="control_label white_input"),
-                                            dcc.Input(
-                                                id="predict_bmi", type="number", placeholder="Enter your BMI",
-                                                min=2, max=122),
+        #                             html.Div(
+        #                                 [
+        #                                     html.P("BMI", className="control_label white_input"),
+        #                                     dcc.Input(
+        #                                         id="predict_bmi", type="number", placeholder="Enter your BMI",
+        #                                         min=2, max=122),
                                                 
-                                        ], className = "three columns predict_input",
-                                    ),
+        #                                 ], className = "three columns predict_input",
+        #                             ),
                                     
                                     
-                                    # Children
+        #                             # Children
                                     
-                                    html.Div(
-                                        [
-                                            html.P("Children", className="control_label white_input"),
-                                            dcc.Dropdown(
-                                                id='predict_children',
-                                                options=[
-                                                    {'label': '0', 'value': '0'},
-                                                    {'label': '1', 'value': '1'},
-                                                    {'label': '2', 'value': '2'},
-                                                    {'label': '3', 'value': '3'},
-                                                    {'label': '4', 'value': '4'},
-                                                    {'label': '5', 'value': '5'},
-                                                    {'label': '6', 'value': '6'},
-                                                    {'label': '7', 'value': '7'},
-                                                    {'label': '8', 'value': '8'},
-                                                    {'label': '9', 'value': '9'},
-                                                    {'label': '10', 'value': '10'},
-                                                ], value='0'
-                                            ),
+        #                             html.Div(
+        #                                 [
+        #                                     html.P("Children", className="control_label white_input"),
+        #                                     dcc.Dropdown(
+        #                                         id='predict_children',
+        #                                         options=[
+        #                                             {'label': '0', 'value': '0'},
+        #                                             {'label': '1', 'value': '1'},
+        #                                             {'label': '2', 'value': '2'},
+        #                                             {'label': '3', 'value': '3'},
+        #                                             {'label': '4', 'value': '4'},
+        #                                             {'label': '5', 'value': '5'},
+        #                                             {'label': '6', 'value': '6'},
+        #                                             {'label': '7', 'value': '7'},
+        #                                             {'label': '8', 'value': '8'},
+        #                                             {'label': '9', 'value': '9'},
+        #                                             {'label': '10', 'value': '10'},
+        #                                         ], value='0'
+        #                                     ),
                                                 
-                                        ], className = "three columns predict-input-last",
-                                    ),
-                                ], className = "row"),
+        #                                 ], className = "three columns predict-input-last",
+        #                             ),
+        #                         ], className = "row"),
                                 
-                                html.Div([
+        #                         html.Div([
                                     
-                                    # Region
+        #                             # Region
                                     
-                                    html.Div(
-                                            [
-                                                  html.P("Region", className="control_label white_input"),
-                                                  dcc.Dropdown(
-                                                      id='predict_region',
-                                                      options=[
-                                                          {'label': 'Southwest', 'value': 'southwest'},
-                                                          {'label': 'Southeast', 'value': 'southeast'},
-                                                          {'label': 'Northwest', 'value': 'northwest'},
-                                                          {'label': 'Northeast', 'value': 'northeast'}
-                                                      ],
-                                                      value="southwest"
-                                                  ),
+        #                             html.Div(
+        #                                     [
+        #                                           html.P("Region", className="control_label white_input"),
+        #                                           dcc.Dropdown(
+        #                                               id='predict_region',
+        #                                               options=[
+        #                                                   {'label': 'Southwest', 'value': 'southwest'},
+        #                                                   {'label': 'Southeast', 'value': 'southeast'},
+        #                                                   {'label': 'Northwest', 'value': 'northwest'},
+        #                                                   {'label': 'Northeast', 'value': 'northeast'}
+        #                                               ],
+        #                                               value="southwest"
+        #                                           ),
                                                 
-                                            ], className = "three columns predict_input",
-                                        ),
+        #                                     ], className = "three columns predict_input",
+        #                                 ),
                                     
-                                       # Sex
+        #                                # Sex
                                         
-                                        html.Div(
-                                            [
-                                                  dcc.RadioItems(
-                                                    id = "predict_sex",
-                                                    options=[
-                                                        {"label": "Male ", "value": "male"},
-                                                        {"label": "Female ", "value": "female"},
-                                                    ],
-                                                    value="male",
-                                                    labelStyle={"display": "inline-block"},
-                                                    className="dcc_control",
-                                                ),
+        #                                 html.Div(
+        #                                     [
+        #                                           dcc.RadioItems(
+        #                                             id = "predict_sex",
+        #                                             options=[
+        #                                                 {"label": "Male ", "value": "male"},
+        #                                                 {"label": "Female ", "value": "female"},
+        #                                             ],
+        #                                             value="male",
+        #                                             labelStyle={"display": "inline-block"},
+        #                                             className="dcc_control",
+        #                                         ),
                                                 
-                                            ], className = "three columns predict_input", style = {"margin-top": "5%"}
-                                        ),
+        #                                     ], className = "three columns predict_input", style = {"margin-top": "5%"}
+        #                                 ),
                                                                     
-                                    html.Div(
-                                            [
-                                                  dcc.Checklist(
-                                                    id = "predict_smoker",
-                                                    options=[
-                                                        {'label': 'Smoker', 'value': 1},
-                                                    ],
-                                                    labelStyle={'display': 'inline-block'}
-                                                )  
+        #                             html.Div(
+        #                                     [
+        #                                           dcc.Checklist(
+        #                                             id = "predict_smoker",
+        #                                             options=[
+        #                                                 {'label': 'Smoker', 'value': 1},
+        #                                             ],
+        #                                             labelStyle={'display': 'inline-block'}
+        #                                         )  
                                                 
-                                            ], className = "three columns predict-input-last", style = {"margin-top": "5%"}
-                                        ),
+        #                                     ], className = "three columns predict-input-last", style = {"margin-top": "5%"}
+        #                                 ),
                                     
-                                ], className = "row"),
+        #                         ], className = "row"),
                                 
-                                html.Div(
-                                    [
+        #                         html.Div(
+        #                             [
                                         
-                                        html.Button('Predict', id='btn_predict', n_clicks=0, className = "twelve columns btn-predict"),
-                                    ],
-                                    className="row container-display", style = {"padding-top": "20px"}                           
-                                 ),
+        #                                 html.Button('Predict', id='btn_predict', n_clicks=0, className = "twelve columns btn-predict"),
+        #                             ],
+        #                             className="row container-display", style = {"padding-top": "20px"}                           
+        #                          ),
                                 
-                            ],
-                            className="pretty_container"
-                        ),
+        #                     ],
+        #                     className="pretty_container"
+        #                 ),
                         
-                        # Prediction results
+        #                 # Prediction results
                         
-                        html.Div(
-                            [
-                                html.Div(
-                                    [html.H6(id="rf_result", children = "$0000.00", className = "predict_result"), html.P("Random Forest")],
-                                    id="wells",
-                                    className="mini_container",
-                                ),
-                                html.Div(
-                                    [html.H6(id="svr_result", children = "$0000.00", className = "predict_result"), html.P("SVM")],
-                                    id="gas",
-                                    className="mini_container",
-                                ),
-                                html.Div(
-                                    [html.H6(id="lasso_result", children = "$0000.00", className = "predict_result"), html.P("Lasso")],
-                                    id="oil",
-                                    className="mini_container",
-                                ),
-                            ],
-                            id="info-container",
-                            className="row container-display",
-                        ),
-                    ],
-                    id="right-column",
-                    className="eight columns",
-                ),
-            ],
-            className="row flex-display",
-        )
+        #                 html.Div(
+        #                     [
+        #                         html.Div(
+        #                             [html.H6(id="rf_result", children = "$0000.00", className = "predict_result"), html.P("Random Forest")],
+        #                             id="wells",
+        #                             className="mini_container",
+        #                         ),
+        #                         html.Div(
+        #                             [html.H6(id="svr_result", children = "$0000.00", className = "predict_result"), html.P("SVM")],
+        #                             id="gas",
+        #                             className="mini_container",
+        #                         ),
+        #                         html.Div(
+        #                             [html.H6(id="lasso_result", children = "$0000.00", className = "predict_result"), html.P("Lasso")],
+        #                             id="oil",
+        #                             className="mini_container",
+        #                         ),
+        #                     ],
+        #                     id="info-container",
+        #                     className="row container-display",
+        #                 ),
+        #             ],
+        #             id="right-column",
+        #             className="eight columns",
+        #         ),
+        #     ],
+        #     className="row flex-display",
+        # )
+        #endregion First Row
     ],
     id="mainContainer",
     style={"display": "flex", "flex-direction": "column"},
 )
 
-# App Callbacks
+#endregion Creating App Layout
+
+#region App Callbacks
 # --------------------------------------------------------------------------------------------
 
-# BMI Calculate Button
-
+# Failed data load bar click callback
 @app.callback(
-    dash.dependencies.Output('bmi_value', 'children'),
-    
-    [dash.dependencies.Input('btn_calculate', 'n_clicks')],
-    
-    [dash.dependencies.State('input_weight', 'value'),
-     dash.dependencies.State('input_height', 'value')],
+    Output("job_error_modal_div", "children"),
+    [Input("loadStatusGraph", "clickData")],  
 )
-
-def update_bmi(n_clicks, input_weight, input_height):
-    if(n_clicks):
-        return "Your BMI: " + ("%.2f" % (input_weight / (input_height * input_height) * 10000))
-    
-    else:
-        return no_update
-
-
-@app.callback(
-    dash.dependencies.Output('predict_age', 'value'),
-    
-    [dash.dependencies.Input('btn_calculate', 'n_clicks')],
-    
-    [dash.dependencies.State('input_age', 'value')],
-)
-
-def copy_age(n_clicks, input_age):
-    if(n_clicks):
-        return input_age
-    
-    else:
-        return no_update
-
-
-@app.callback(
-    dash.dependencies.Output('predict_bmi', 'value'),
-    
-    [dash.dependencies.Input('btn_calculate', 'n_clicks')],
-    
-    [dash.dependencies.State('input_weight', 'value'),
-     dash.dependencies.State('input_height', 'value')],
-)
-
-def copy_bmi(n_clicks, input_weight, input_height):
-    if(n_clicks):
-        return ("%.2f" % (input_weight / (input_height * input_height) * 10000))
-    
-    else:
-        return no_update
-
-# BMI Reset Button
-
-@app.callback(
-    [dash.dependencies.Output('input_height', 'value'),
-    dash.dependencies.Output('input_weight', 'value'),
-    dash.dependencies.Output('input_age', 'value'),
-    ],
-    
-    [dash.dependencies.Input('btn_reset', 'n_clicks')]
-)
-
-def reset_bmi(n_clicks):
-    if(n_clicks):
-        return (None, None, None)
-    else:
-        return no_update
-
-# Prediction
-
-@app.callback(
-    [dash.dependencies.Output('rf_result', 'children'),
-     dash.dependencies.Output('lasso_result', 'children'),
-     dash.dependencies.Output('svr_result', 'children')],
-    
-    [dash.dependencies.Input('btn_predict', 'n_clicks')],
-    
-    [dash.dependencies.State('predict_age', 'value'),
-     dash.dependencies.State('predict_bmi', 'value'),
-     dash.dependencies.State('predict_children', 'value'),
-     dash.dependencies.State('predict_region', 'value'),
-     dash.dependencies.State('predict_sex', 'value'),
-     dash.dependencies.State('predict_smoker', 'value')],
-)
-
-def predict_result(n_clicks, input_age, input_bmi, input_children, input_region, input_sex, input_smoker):
-    if(n_clicks):
-        
-        if (not input_smoker):
-            isSmoker = "no"
-        elif (len(input_smoker) == 1):
-            isSmoker = "yes"
-        
-        # print("smoker: ", isSmoker)
-        
-        
-        sample = [input_age, input_sex, input_bmi, input_children, isSmoker, input_region]
-        
-        # sample = [19, "female", 27.900, 0, "yes", "southwest"]
-        
-        
-        sample = pd.DataFrame([sample], columns = ["age", "sex", "bmi", "children", "smoker", "region"])
-        
-        
-        sample = pd.concat(
+def show_job_error_modal(clickData):
+    clicked_bar_index = clickData.get("points")[0].get("pointIndex")
+    clicked_filtered_df = dataload_df.iloc[[clicked_bar_index]]
+    job_error_text = clicked_filtered_df["additional_info"].values[0]
+    job_status_desc = clicked_filtered_df["status_desc"].values[0]
+    modal_body_content = [ html.Label(job_error_text,style={"color": "black"}),
+                        html.A("Cloudwatch Link", href="https://www.google.com"),
+                           
+                        ]  
+    modal_output = dbc.Modal(
             [
-                sample,
-                pd.DataFrame(ohe_smoker.transform(sample["smoker"].values.reshape(-1,1)).toarray(),
-                            columns = ohe_smoker.get_feature_names(['smoker'])).astype(int)
-            ], axis=1).drop("smoker", axis=1)
-        
-        sample = pd.concat(
-            [
-                sample,
-                pd.DataFrame(ohe_sex.transform(sample["sex"].values.reshape(-1,1)).toarray(),
-                            columns = ohe_sex.get_feature_names(['sex'])).astype(int)
-            ], axis=1).drop("sex", axis=1)
-        
-        sample = pd.concat(
-            [
-                sample,
-                pd.DataFrame(ohe_region.transform(sample["region"].values.reshape(-1,1)).toarray(),
-                            columns = ohe_region.get_feature_names(['region'])).astype(int)
-            ], axis=1).drop("region", axis=1)
-            
-        rf_result = sc_y.inverse_transform(rf_model.predict(sc_X.transform(sample)))
-        lasso_result = lasso_model.predict(sample)
-        svr_result = sc_y.inverse_transform(svr_model.predict(sc_X.transform(sample)))
-        
-        return ("$" + ("%.2f" % rf_result)), ("$" + ("%.2f" % lasso_result)), ("$" + ("%.2f" % svr_result))
+                dbc.ModalHeader("{0}!".format(job_status_desc), style={"color": "red"}),
+                dbc.ModalBody(modal_body_content),
+            ],
+            id="modal",
+            is_open=True,
+            centered=True,
+        )
+    return modal_output
+
+
+# Recon Table/Tab callback
+@app.callback(Output("recon_table", "children"), 
+                Input("button-total", "n_clicks"),
+                Input("button-failed", "n_clicks"),
+                Input("button-passed", "n_clicks")
+)
+def filter_table(total_click_count, failed_click_count, passed_click_count):
+    clicked_button_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+    if not(total_click_count or failed_click_count or passed_click_count):
+        df_filtered = recon_data_df
+    elif "button-failed" in clicked_button_id:
+        df_filtered = recon_data_df[recon_data_df["overall_status"]=="Fail"]
+    elif "button-passed" in clicked_button_id:
+        df_filtered = recon_data_df[recon_data_df["overall_status"]=="Pass"]
     else:
-        return no_update
+        df_filtered = recon_data_df
+    return dbc.Table.from_dataframe(df_filtered, striped = True, bordered = True, dark = True)
+
+#endregion App Callbacks
 
 # Main
 if __name__ == "__main__":
-    app.run_server(debug=True, use_reloader=True, dev_tools_ui=False)
+    app.run_server(debug=True, use_reloader=True, dev_tools_ui=False, port=8059)

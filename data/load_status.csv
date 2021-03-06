@@ -1,11 +1,11 @@
-job_sequence,job_title,job_desc,status_code,status_desc
-1,Job1,First Job for data load,1,Complete
-2,Job2,Second Job for data load,1,Complete
-3,Job3,Third Job for data load,1,Complete
-4,Job4,Fourth Job for data load,1,Complete
-5,Job5,Fifth Job for data load,1,Complete
-6,Job6,Sixth Job for data load,2,Failed
-7,Job7,Seventh Job for data load,4,Not Started
-8,Job8,Eighth Job for data load,4,Not Started
-9,Job9,Ninth Job for data load,4,Not Started
-10,Job10,Tenth Job for data load,4,Not Started
+job_sequence,job_title,job_desc,status_code,status_desc,additional_info,run_date
+1,Job1,First Job for data load,1,Success,Successfully completed,2021-02-26
+2,Job2,Second Job for data load,1,Success,Successfully completed,2021-02-26
+3,Job3,Third Job for data load,1,Success,Successfully completed,2021-02-26
+4,Job4,Fourth Job for data load,1,Success,Successfully completed,2021-02-26
+5,Job5,Fifth Job for data load,1,Success,Successfully completed,2021-02-26
+6,Job6,Sixth Job for data load,2,Failure,Unable to connect to database,2021-02-26
+7,Job7,Seventh Job for data load,4,Not Started,Awaiting completion of prior jobs,2021-02-26
+8,Job8,Eighth Job for data load,4,Not Started,Awaiting completion of prior jobs,2021-02-26
+9,Job9,Ninth Job for data load,4,Not Started,Awaiting completion of prior jobs,2021-02-26
+10,Job10,Tenth Job for data load,4,Not Started,Awaiting completion of prior jobs,2021-02-26
